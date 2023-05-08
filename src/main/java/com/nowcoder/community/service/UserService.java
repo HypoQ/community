@@ -31,14 +31,14 @@ public class UserService implements CommunityConstant {
     @Autowired
     private TemplateEngine templateEngine;
 
+    @Autowired
+    private LoginTicketMapper loginTicketMapper;
+
     @Value("${community.path.domain}")
     private String domain;
 
     @Value("${server.servlet.context-path}")
     private String contextPath;
-
-    @Autowired
-    private LoginTicketMapper loginTicketMapper;
 
     public User findUserById(int id) {
         return userMapper.selectById(id);
@@ -71,14 +71,16 @@ public class UserService implements CommunityConstant {
             return map;
         }
 
-        // 验证邮箱
+        //验证邮箱
         u = userMapper.selectByEmail(user.getEmail());
         if (u != null) {
             map.put("emailMsg", "该邮箱已被注册!");
             return map;
         }
 
+
         // 注册用户
+
         user.setSalt(CommunityUtil.generateUUID().substring(0, 5));
         user.setPassword(CommunityUtil.md5(user.getPassword() + user.getSalt()));
         user.setType(0);
@@ -168,9 +170,48 @@ public class UserService implements CommunityConstant {
     public int updateHeader(int userId, String headerUrl) {
         return userMapper.updateHeader(userId, headerUrl);
     }
+    public int updatePassword(int userId, String password, String salt) {
+        password = CommunityUtil.md5(password + salt);
+        return userMapper.updatePassword(userId, password);
+    }
+
+    public Map<String, Object> updatePassword(int userId, String originPassword, String newPassword, String confirmPassword) {
+        Map<String, Object> map = new HashMap<>();
+
+        // 空值处理
+        if (StringUtils.isBlank(originPassword)) {
+            map.put("originPasswordMsg", "原密码不能为空!");
+            return map;
+        }
+        if (StringUtils.isBlank(newPassword)) {
+            map.put("newPasswordMsg", "新密码不能为空!");
+            return map;
+        }
+
+        if (StringUtils.isBlank(confirmPassword)) {
+            map.put("newPasswordMsg", "再次输入密码不能为空!");
+            return map;
+        }
+
+        //验证密码
+        User user = userMapper.selectById(userId);
+        originPassword = CommunityUtil.md5(originPassword + user.getSalt());
+        if (!user.getPassword().equals(originPassword)) {
+            map.put("originPasswordMsg", "原密码不正确!");
+            return map;
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            map.put("confirmPasswordMsg", "两次密码不一致!");
+            return map;
+        }
+
+        // 更新密码
+        newPassword = CommunityUtil.md5(newPassword + user.getSalt());
+        userMapper.updatePassword(userId, newPassword);
+        return map;
+    }
 
     public User findUserByName(String username) {
         return userMapper.selectByName(username);
     }
-
 }
