@@ -2,6 +2,7 @@ package com.nowcoder.community.controller;
 
 import com.nowcoder.community.annotation.LoginRequired;
 import com.nowcoder.community.entity.User;
+import com.nowcoder.community.service.LikeService;
 import com.nowcoder.community.service.UserService;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.HostHolder;
@@ -45,6 +46,9 @@ public class UserController {
 
     @Autowired
     private HostHolder hostHolder;//从当前用户里取
+
+    @Autowired
+    private LikeService likeService;
 
     @LoginRequired
     @RequestMapping(path = "/setting", method = RequestMethod.GET)
@@ -113,9 +117,25 @@ public class UserController {
         }
     }
 
+    //个人主页
+    @RequestMapping(path = "/profile/{userId}", method = RequestMethod.GET)
+    public String getProfilePage(@PathVariable("userId") int userId, Model model) {
+        User user = userService.findUserById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        //用户
+        model.addAttribute("user", user);
+        //点赞数量
+        int likeCount = likeService.findUserLikeCount(userId);
+        model.addAttribute("likeCount", likeCount);
+
+        return "/site/profile";
+    }
+
     @LoginRequired
     @RequestMapping(path = "/updatePassword", method = RequestMethod.POST)
-    public String uploadPassword(String originPassword, String newPassword, String confirmPassword,Model model) {
+    public String uploadPassword(String originPassword, String newPassword, String confirmPassword, Model model) {
         User user = hostHolder.getUser();
         Map<String, Object> map = userService.updatePassword(user.getId(), originPassword, newPassword, confirmPassword);
         if (map == null || map.isEmpty()) {
