@@ -41,7 +41,7 @@
 									<img src="http://images.nowcoder.com/head/1t.png" class="rounded-circle" style="width:30px;"/>
 								</a>
 								<div class="dropdown-menu" aria-labelledby="navbarDropdown">
-									<a class="dropdown-item text-center" href="profile.html">个人主页</a>
+									<a class="dropdown-item text-center" th:href="@{|/user/profile/${loginUser.id}|}">个人主页</a>
 									<a class="dropdown-item text-center" href="setting.html">账号设置</a>
 									<a class="dropdown-item text-center" href="login.html">退出登录</a>
 									<div class="dropdown-divider"></div>
@@ -75,7 +75,7 @@
 				</h6>
 				<!-- 作者 -->
 				<div class="media pb-3 border-bottom">
-					<a href="profile.html">
+					<a th:href="@{|/user/profile/${user.id}|}">
 						<img th:src="${user.headerUrl}" class="align-self-start mr-4 rounded-circle user-header" alt="用户头像" >
 					</a>
 					<div class="media-body">
@@ -118,7 +118,7 @@
 				<!-- 回帖列表 -->
 				<ul class="list-unstyled mt-4">
 					<li class="media pb-3 pt-3 mb-3 border-bottom" th:each="cvo:${comments}">
-						<a href="profile.html">
+						<a th:href="@{|/user/profile/${cvo.user.id}|}">
 							<img th:src="${cvo.user.headerUrl}" class="align-self-start mr-4 rounded-circle user-header" alt="用户头像" >
 						</a>
 						<div class="media-body">
