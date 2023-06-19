@@ -1,6 +1,9 @@
 package com.nowcoder.community.event;
 
 import com.alibaba.fastjson.JSONObject;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.ObjectMetadata;
+import com.nowcoder.community.config.AliyunOssConfig;
 import com.nowcoder.community.entity.DiscussPost;
 import com.nowcoder.community.entity.Event;
 import com.nowcoder.community.entity.Message;
@@ -14,12 +17,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 @Component
 public class EventConsumer implements CommunityConstant {
@@ -34,6 +42,16 @@ public class EventConsumer implements CommunityConstant {
 
     @Autowired
     private ElasticsearchService elasticsearchService;
+
+
+    @Autowired
+    private ThreadPoolTaskScheduler taskScheduler;
+
+    @Autowired
+    private OSS ossClient;
+
+    @Autowired
+    private AliyunOssConfig aliyunOssConfig;
 
     @Value("${wk.image.command}")
     private String wkImageCommand;
@@ -137,6 +155,76 @@ public class EventConsumer implements CommunityConstant {
         } catch (IOException e) {
             logger.error("生成长图失败: " + e.getMessage());
         }
-    }
 
+        // 启动定时器，监视该图片，一旦生成了，则上传至OSS
+        UploadTask task = new UploadTask(fileName, suffix);
+        Future future =  taskScheduler.scheduleAtFixedRate(task, 500);
+        task.setFuture(future);
+
+
+    }
+    class UploadTask implements Runnable {
+
+        //文件名称
+        private String fileName;
+        //文件后缀
+        private String suffix;
+        // 启动任务的返回值
+        private Future future;
+        //开始时间
+        private long startTime;
+        //尝试次数
+        private int tryCount = 0;
+
+        public UploadTask(String fileName, String suffix) {
+            this.fileName = fileName;
+            this.suffix = suffix;
+            this.startTime = System.currentTimeMillis();
+        }
+
+        public void setFuture(Future future) {
+            this.future = future;
+        }
+
+        @Override
+        public void run() {
+            //生成图片失败
+            if (System.currentTimeMillis() - startTime > 30000) {
+                logger.error("执行时间过长，终止任务：" + fileName);
+                future.cancel(true);
+                return;
+            }
+            //上传失败
+            if (tryCount >= 3) {
+                logger.error("上传次数过多，终止任务：" + fileName);
+                future.cancel(true);
+                return;
+            }
+
+            String path = wkImageStorage + "/" + fileName + suffix;
+            File file = new File(path);
+            if (file.exists()) {
+                logger.info(String.format("开始第%d次上传[%s].", ++tryCount, fileName));
+                //上传到OSS
+                String key =  "share" + "/" + fileName + suffix;
+                InputStream is = null;
+                try {
+                    is = new FileInputStream(file);
+                    ObjectMetadata meta = new ObjectMetadata();
+                    meta.setContentType("image/jpg");
+                    ossClient.putObject(aliyunOssConfig.getShareBucketName(), key, is, meta);
+                    //ossTemplate.upload(key,is);
+                    //上传成功则取消定时任务
+                    future.cancel(true);
+                    logger.info(String.format("第%d次上传成功[%s].", tryCount, fileName));
+                } catch (Exception e) {
+                    logger.error("上传失败：" + e.getMessage());
+                } finally {
+                    //IOUtils.closeQuietly(is);
+                }
+
+
+            }
+        }
+    }
 }
